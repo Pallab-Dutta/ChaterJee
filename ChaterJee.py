@@ -63,7 +63,7 @@ class ChaterJee_Bot:
         #jedit_handler = CommandHandler('edit', editJSON)        # JSON file editor
         #application.add_handler(jedit_handler)
 
-        #application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
+        application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, self.web_app_data))
         application.add_handler(MessageHandler(filters.TEXT, self.commands))
 
         application.run_polling() 
@@ -216,20 +216,19 @@ class ChaterJee_Bot:
 
     async def EditorBabu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         print('Opening Json file in edit mode')
-        #pdict = {'quantity':3,'price':600}
-        #jdict = json.dumps(pdict)
         if len(context.args) == 1:
             file_path = context.args[0]
             if os.path.exists(file_path):
                 with open(file_path,'r') as ffr:
                     JsonStr = json.load(ffr)
                 encoded_params = urllib.parse.quote(json.dumps(JsonStr))
-                extender = f"?variables={encoded_params}"
+                file_name = urllib.parse.quote(json.dumps(file_path.split('/')[-1]))
+                extender = f"?variables={encoded_params}&fileNAME={file_name}"
                 msg = await update.message.reply_text(
-                    "Material upload",
+                    "Editor-Babu is opening the Json file.",
                     reply_markup=ReplyKeyboardMarkup.from_button(
                         KeyboardButton(
-                            text="Add Materials",
+                            text="Editor Babu",
                             web_app=WebAppInfo(url="https://pallab-dutta.github.io/ChaterJee/EditorBabu"+extender),
                         )
                     ),
@@ -242,6 +241,12 @@ class ChaterJee_Bot:
             msg = await context.bot.send_message(chat_id=self.CHATID, text=txt)
         
         self.smsID.append(msg.message_id)
+
+    async def web_app_data(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None :
+        data = json.loads(update.effective_message.web_app_data.data)
+        formname = data['formNAME']
+        if formname == 'EditorBabu':
+            print(data)
 
     async def commands(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.smsID.append(update.message.message_id)

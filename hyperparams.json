@@ -1,0 +1,23 @@
+{
+	"PROJECT": "AutoEncoder_for_Abl",
+        "DEVICE": "cuda",
+	"ARCHITECTURE": [[1024,512,128,32,2],["relu","tanh","relu","relu","tanh"]],
+	"FEATURE_DIMS": 3275,
+	"EPOCHS": 1000,
+	"EPOCH_INI": 0,
+	"TRAIN_SIZE": 0.80,
+	"BATCH_SIZE": 64,
+	"LEARNING_RATE": 0.0001,
+	"INFILES": ["act_train_features.nc", "int_train_features.nc"],
+	"COLORS": ["black", "orangered"],
+	"LABELS": ["act", "int"],
+	"LOSS": "MSE",
+	"SAVING_FREQ": 100,
+	"MODELS_DIR": "./models/AE_classical",
+	"MODEL_NAME": "Classical_AutoEncoder_v1.5",
+	"L1_LAMBDA": 0.0,
+	"L2_LAMBDA": 0.0,
+	"Or_LAMBDA": 1.0,
+	"DROPOUT_R": 0.2,
+	"SCALE": "minmax"
+}

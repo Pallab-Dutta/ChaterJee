@@ -129,7 +129,11 @@ document.addEventListener('DOMContentLoaded', function() {
         //var form = document.getElementById('orderForm');
         var formData = generateNewJson();
 
-        formData['formname'] = 'EditorBabu';
+        formData['formNAME'] = 'EditorBabu';
+	const fileNAME = getParameterByName('fileNAME');
+        if (fileNAME) {
+                formData['fileNAME'] = INVCno;
+        }
         var jsonString = JSON.stringify(formData);
         TW.sendData(jsonString);
         TW.close();
