@@ -1,11 +1,6 @@
 import os, sys
 import time
 from datetime import datetime
-#from tqdm.contrib.telegram import tqdm, trange
-#import telegram
-#from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters
-#import threading
-#from subprocess import PIPE, Popen
 import urllib.parse
 import asyncio
 import pickle
@@ -13,11 +8,12 @@ import html
 import traceback
 import logging, json
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, PollAnswerHandler, PollHandler
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, ConversationHandler, filters, PollAnswerHandler, PollHandler
 from telegram.constants import ParseMode
 import os.path
 import threading
 from subprocess import PIPE, Popen
+from pathlib import Path
 
 start_txt = \
 """
@@ -31,8 +27,9 @@ even when you are at a remote location.
 
 """
 
-class ChaterJee_Bot:
+class ChatLogs:
     def __init__(self, TOKEN, CHATID):
+        self.home = Path.home()
         self.TOKEN = TOKEN
         self.CHATID = CHATID
         self.txt = ''
@@ -50,6 +47,19 @@ class ChaterJee_Bot:
 
         fEdit_handler = CommandHandler('edit', self.EditorBabu)
         application.add_handler(fEdit_handler)
+
+        #jobs_handler = CommandHandler('jobs', self.ShowJobs)
+        #application.add_handler(jobs_handler)
+
+        jobs_handler = ConversationHandler(\
+        entry_points=[CommandHandler("jobs", self.ShowJobs)],\
+        states={
+            0: [MessageHandler(filters.Regex(f"^({'|'.join(list(self.jobs.keys()))})$"), self.StatJobs)],
+            },
+            fallbacks=[CommandHandler("cancel", self.cancel)],
+        )
+
+        application.add_handler(jobs_handler)
         #add_handler = CommandHandler('add', addDICT)
         #application.add_handler(add_handler)
         #run_handler = CommandHandler('run', runCMD)
@@ -214,6 +224,66 @@ class ChaterJee_Bot:
         msg = await context.bot.send_message(chat_id=self.CHATID, text=start_txt)
         self.smsID.append(msg.message_id)
 
+    def register_to_log(self, job_name: str, log_path: str):
+        self.jobs[job_name] = log_path
+
+    async def ShowJobs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        jobs_file = self.home / ".data" / "JOB_status.json"                                                                                  with open(jobs_file, 'r') as ffr:                                                                                                        jobs = json.load(ffr)
+
+        reply_keyboard = [[f'{job}'] for job in list(jobs.keys())]
+        msg = await update.message.reply_text("Select a job to get updates on",\
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, input_field_placeholder="Select the job."\
+        ),\
+        )
+        self.smsID.append(msg.message_id)
+        return 0
+
+    async def StatJobs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        job_name = update.message.text
+        
+        jobs_file = self.home / ".data" / "JOB_status.json"
+        with open(jobs_file, 'r') as ffr:
+            jobs = json.load(ffr)
+
+        logDIR = jobs[job_name]['logDIR']
+        logFILE = jobs[job_name]['logFILE']
+        logIMAGE = jobs[job_name]['logIMAGE']
+        
+        txt = get_last_line(logDIR / logFILE)
+        if txt is not None:
+            msg = await context.bot.send_message(chat_id=self.CHATID, text=txt)
+            self.smsID.append(msg.message_id)
+
+        try:
+            with open(logDIR / logIMAGE, 'rb') as ffrb:
+                msg = await context.bot.send_photo(chat_id=self.CHATID, photo=ffrb)
+                self.smsID.append(msg.message_id)
+
+        return ConversationHandler.END
+
+    def get_last_line(filepath):
+        with open(filepath, 'rb') as f:
+            # Go to the end of file
+            f.seek(0, 2)
+            end = f.tell()
+
+            # Step backwards looking for newline
+            pos = end - 1
+            while pos >= 0:
+                f.seek(pos)
+                char = f.read(1)
+                if char == b'\n' and pos != end - 1:
+                    break
+                pos -= 1
+
+            # Read from found position to end
+            f.seek(pos + 1)
+            last_line = f.read().decode('utf-8')
+            return last_line.strip()
+
+    async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        pass
+
     async def EditorBabu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         print('Opening Json file in edit mode')
         if len(context.args) == 1:
@@ -289,16 +359,49 @@ class ChaterJee_Bot:
             msg = await context.bot.send_message(chat_id=self.CHATID, text=txt)
             self.smsID.append(msg.message_id)
 
-def main():
-    k=Termibot()
-    k.cmdTRIGGER()
+
+class NoteLogs:
+    def __init__(self):
+        self.home = Path.home()
+        self.jobNAME = None
+        self.logDIR = None
+        self.logFILE = None
+        self.logIMAGE = None
+
+    def write(self, jobNAME: str, logDIR: str = None, logSTRING: str = None, logFILE: str = 'log_file.out', logIMAGE: str = 'log_file.png'):
+        if logDIR is None:
+            pwd = Path.cwd()
+            _logDIR = pwd / jobNAME
+            _logDIR.mkdir(exist_ok=True)
+            logDIR = str(pwd)
+        else:
+            _logDIR = Path(logDIR)
+
+        with open(_logDIR / logFILE, 'a') as ffa:
+            print(f"\n{logSTRING}",file=ffa)
+
+        _logFILE = _logDIR / logFILE
+        _logIMAGE = _logDIR / logIMAGE
+
+        self.jobNAME = jobNAME
+        self.logDIR = logDIR
+        self.logFILE = logFILE
+        self.logIMAGE = logIMAGE
+        self.save_job_JSON()
+
+    def save_job_JSON(self):
+        jobs_file = self.home / ".data" / "JOB_status.json"
+        with open(jobs_file, 'r') as ffr:
+            jobs = json.load(ffr)
+        jobs[self.jobNAME] = {\
+                "logDIR": self.logDIR, \
+                "logFILE": self.logFILE, \
+                "logIMAGE": self.logIMAGE \
+                }
+        with open(jobs_file, 'w') as ffw:
+            json.dump(jobs, ffw, indent=4)
 
 if __name__ == '__main__':
-    TOKEN = '1711613332:AAHzf0GMQPjnBINOfIhfbK9dmIUo7mHiThw'
-    CHATID = '1651529355'
-
     cbot = ChaterJee_Bot(TOKEN, CHATID)
     cbot.cmdTRIGGER()
 
-#if __name__ == "__main__":
-#    main()
