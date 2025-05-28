@@ -11,15 +11,30 @@ body {
     max-width: 800px;
     margin: 0 auto;
     background: white;
+    /*padding: 20px;
+    border-radius: 8px;*/
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.box {
+    max-width: 800px;
+    margin: 0 auto;
+    background: white;
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+textarea.auto-resize-textarea {
+    border-radius: 8px; /* Or any other value you prefer for textareas */
+    min-height: 40px; /* Optional: set a minimum height */
+    resize: vertical; /* Optional: still allow manual vertical resizing by user if desired */
+}
+
 h1 {
     text-align: center;
     color: #ffffff;
-    background-color: #eb4034;
+    background-color: black;
     border-radius: 90px;
 }
 

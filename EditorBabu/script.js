@@ -1,9 +1,10 @@
 document.addEventListener('DOMContentLoaded', function() {
     const formContainer = document.getElementById('form-container');
-    const updateUrlBtn = document.getElementById('update-url');
-    const newUrlContainer = document.getElementById('new-url-container');
-    const newUrlDisplay = document.getElementById('new-url');
-    const copyUrlBtn = document.getElementById('copy-url');
+    // updateUrlBtn, newUrlContainer, newUrlDisplay, copyUrlBtn are not used in the provided HTML structure for TG WebApp
+    // const updateUrlBtn = document.getElementById('update-url');
+    // const newUrlContainer = document.getElementById('new-url-container');
+    // const newUrlDisplay = document.getElementById('new-url');
+    // const copyUrlBtn = document.getElementById('copy-url');
 
     // Parse URL parameters
     const urlParams = new URLSearchParams(window.location.search);
@@ -23,6 +24,12 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
+    // Helper function to auto-resize textarea
+    function autoResizeTextarea(textarea) {
+        textarea.style.height = 'auto'; // Reset height to allow shrinking
+        textarea.style.height = textarea.scrollHeight + 'px'; // Set height to content size
+    }
+
     // Create form from variables
     function createForm() {
         if (Object.keys(currentVariables).length === 0) {
@@ -38,10 +45,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     <label for="${key}">${key}</label>
             `;
             
-            if (Array.isArray(value)) {
-                formHTML += `<textarea id="${key}" name="${key}">${JSON.stringify(value, null, 2)}</textarea>`;
-            } else if (typeof value === 'object' && value !== null) {
-                formHTML += `<textarea id="${key}" name="${key}">${JSON.stringify(value, null, 2)}</textarea>`;
+            // Textarea for arrays or objects
+            if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+                formHTML += `<textarea id="${key}" name="${key}" class="auto-resize-textarea">${JSON.stringify(value, null, 2)}</textarea>`;
             } else if (typeof value === 'boolean') {
                 formHTML += `
                     <select id="${key}" name="${key}">
@@ -60,88 +66,98 @@ document.addEventListener('DOMContentLoaded', function() {
         
         formHTML += '</form>';
         formContainer.innerHTML = formHTML;
+
+        // Add auto-resize functionality to textareas
+        // Select all textareas within the form, or specifically those needing auto-resize
+        const textareas = formContainer.querySelectorAll('textarea.auto-resize-textarea'); 
+        textareas.forEach(textarea => {
+            autoResizeTextarea(textarea); // Initial resize
+            textarea.addEventListener('input', () => autoResizeTextarea(textarea)); // Resize on input
+        });
     }
 
-    // Compare two values deeply
+    // Compare two values deeply (remains unchanged)
     function isEqual(value1, value2) {
         return JSON.stringify(value1) === JSON.stringify(value2);
     }
 
-    // Generate new URL with only updated variables
+    // Generate new JSON with only updated variables (remains largely unchanged)
     function generateNewJson() {
         const form = document.getElementById('variables-form');
+        if (!form) return {}; // Handle case where form might not exist
+        
         const formData = new FormData(form);
         const updatedVariables = {};
         
         for (const [key, value] of formData.entries()) {
             try {
                 let parsedValue;
+                const originalValue = originalVariables[key];
                 
-                // Try to parse as JSON if the value looks like JSON
-                if (value.trim().startsWith('{') || value.trim().startsWith('[')) {
-                    parsedValue = JSON.parse(value);
-                } else if (value === 'true') {
-                    parsedValue = true;
-                } else if (value === 'false') {
-                    parsedValue = false;
-                } else if (!isNaN(value) && value !== '') {
-                    parsedValue = Number(value);
-                } else {
+                // Attempt to parse if it looks like JSON (array/object) or is boolean/number string
+                if (typeof originalValue === 'boolean') {
+                    parsedValue = (value === 'true');
+                } else if (typeof originalValue === 'number') {
+                    parsedValue = parseFloat(value);
+                     if (isNaN(parsedValue) && value !== '') { // if parsing to float fails but original was number
+                        parsedValue = value; // keep as string if not a valid number string
+                    } else if (value === '') { // if field is cleared
+                        parsedValue = null; // or handle as you see fit, e.g., undefined or keep empty string
+                    }
+                } else if (Array.isArray(originalValue) || (typeof originalValue === 'object' && originalValue !== null)) {
+                     try {
+                        parsedValue = JSON.parse(value);
+                    } catch (jsonError) {
+                        // If it was an object/array but now invalid JSON, treat as string
+                        // This might happen if user manually edits a JSON textarea into invalid syntax
+                        parsedValue = value; 
+                    }
+                }
+                else { // Default to string
                     parsedValue = value;
                 }
                 
-                // Only include if the value has changed
-                if (!isEqual(parsedValue, originalVariables[key])) {
+                if (!isEqual(parsedValue, originalValue)) {
                     updatedVariables[key] = parsedValue;
                 }
-            } catch (e) {
-                // If parsing fails, just use the string value if it's different
+            } catch (e) { // Catch errors from direct parsing attempts (though mostly handled above)
+                console.warn(`Error processing form value for key ${key}:`, e);
+                // Fallback: if an unexpected error occurs, compare as string if different
                 if (value !== originalVariables[key]) {
                     updatedVariables[key] = value;
                 }
             }
         }
-        
-        // Only generate new URL if there are changes
-        //if (Object.keys(updatedVariables).length === 0) {
-        //    newUrlDisplay.textContent = "No changes detected";
-        //    newUrlContainer.classList.remove('hidden');
-        //    return;
-        //}
-        
-        //const newUrl = new URL(window.location.href.split('?')[0]);
-        //newUrl.searchParams.set('variables', encodeURIComponent(JSON.stringify(updatedVariables)));
-        
         return updatedVariables;
     }
 
-    // Function to parse URL parameters
+    // Function to parse URL parameters (remains unchanged)
     function getParameterByName(name, url) {
-	if (!url) url = window.location.href;
-	name = name.replace(/[\[\]]/g, "\\$&");
-	var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-	results = regex.exec(url);
-	if (!results) return null;
-	if (!results[2]) return '';
-	return decodeURIComponent(results[2].replace(/\+/g, " "));
+        if (!url) url = window.location.href;
+        name = name.replace(/[\[\]]/g, "\\$&");
+        var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+        results = regex.exec(url);
+        if (!results) return null;
+        if (!results[2]) return '';
+        return decodeURIComponent(results[2].replace(/\+/g, " "));
     }
 
     // Initialize the form
     createForm();
 
+    // Telegram Web App integration (remains unchanged)
     const TW = Telegram.WebApp;
     TW.ready();
 
     TW.MainButton.text = 'Save';
-    TW.MainButton.color = '#eb4034';
+    TW.MainButton.color = '#eb4034'; // Example color
     TW.MainButton.textColor = '#ffffff';
 
     TW.MainButton.show().onClick(function () {
-        //var form = document.getElementById('orderForm');
         var formData = generateNewJson();
 
-        formData['formNAME'] = 'EditorBabu';
-	const fileNAME = getParameterByName('fileNAME');
+        formData['formNAME'] = 'EditorBabu'; // Hardcoded form name
+        const fileNAME = getParameterByName('fileNAME');
         if (fileNAME) {
             formData['fileNAME'] = fileNAME;
         }
@@ -150,5 +166,4 @@ document.addEventListener('DOMContentLoaded', function() {
         TW.close();
     });
     TW.expand();
-
 });
