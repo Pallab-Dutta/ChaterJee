@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const TW = Telegram.WebApp;
     TW.ready();
 
-    TW.MainButton.text = 'Save <span class="material-symbols-outlined">save</span>';
+    TW.MainButton.text = 'Save';
     TW.MainButton.color = '#eb4034';
     TW.MainButton.textColor = '#ffffff';
 

@@ -246,7 +246,21 @@ class ChaterJee_Bot:
         data = json.loads(update.effective_message.web_app_data.data)
         formname = data['formNAME']
         if formname == 'EditorBabu':
-            print(data)
+            fileNAME = data['fileNAME']
+            del data['formNAME']
+            del data['fileNAME']
+            if len(data):
+                with open(fileNAME, 'r') as ffr:
+                    JSdata = json.load(ffr)
+                JSdata = {**JSdata, **data}
+                with open(fileNAME, 'w') as ffw:
+                    json.dump(JSdata, ffw, indent=4)
+                txt = f"edits are saved to {fileNAME}"
+            else:
+                txt = f"No new changes! file kept unchanged."
+
+        msg = await context.bot.send_message(chat_id=self.CHATID, text=txt)
+        self.smsID.append(msg.message_id)
 
     async def commands(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.smsID.append(update.message.message_id)
