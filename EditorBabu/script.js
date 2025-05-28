@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', function() {
         //var form = document.getElementById('orderForm');
         var formData = generateNewJson();
 
-        //formData['formname'] = 'Ordering'
+        formData['formname'] = 'EditorBabu';
         var jsonString = JSON.stringify(formData);
         TW.sendData(jsonString);
         TW.close();
