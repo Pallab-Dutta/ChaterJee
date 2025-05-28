@@ -142,6 +142,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         formData['formNAME'] = 'EditorBabu';
 	const fileNAME = getParameterByName('fileNAME');
+	console.log(fileNAME);
         if (fileNAME) {
                 formData['fileNAME'] = INVCno;
         }
