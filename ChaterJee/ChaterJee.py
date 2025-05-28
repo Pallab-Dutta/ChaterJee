@@ -299,7 +299,7 @@ class ChatLogs:
                     reply_markup=ReplyKeyboardMarkup.from_button(
                         KeyboardButton(
                             text="Editor Babu",
-                            web_app=WebAppInfo(url="https://pallab-dutta.github.io/ChaterJee/EditorBabu"+extender),
+                            web_app=WebAppInfo(url="https://pallab-dutta.github.io/EditorBabu"+extender),
                         )
                     ),
                 )
