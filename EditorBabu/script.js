@@ -142,9 +142,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         formData['formNAME'] = 'EditorBabu';
 	const fileNAME = getParameterByName('fileNAME');
-	console.log(fileNAME);
         if (fileNAME) {
-                formData['fileNAME'] = INVCno;
+            formData['fileNAME'] = fileNAME;
         }
         var jsonString = JSON.stringify(formData);
         TW.sendData(jsonString);

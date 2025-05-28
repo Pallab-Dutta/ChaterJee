@@ -223,6 +223,7 @@ class ChaterJee_Bot:
                     JsonStr = json.load(ffr)
                 encoded_params = urllib.parse.quote(json.dumps(JsonStr))
                 file_name = urllib.parse.quote(json.dumps(file_path.split('/')[-1]))
+                print(file_name)
                 extender = f"?variables={encoded_params}&fileNAME={file_name}"
                 msg = await update.message.reply_text(
                     "Editor-Babu is opening the Json file.",
