@@ -245,6 +245,8 @@ class ChatLogs:
                 self.txt='path not found'
         elif cmd0=='clear':
             self.txt="This clears the terminal screen!\nTo clear telegram screen type /clear"
+        elif cmd0=='pkill':
+            self.txt="pkill cannot be called."
         else:
             print('command: ',cmd2run)
             cmd=cmd2run
