@@ -300,8 +300,9 @@ class NoteLogs:
         else:
             _logDIR = Path(logDIR)
 
-        with open(_logDIR / logFILE, 'a') as ffa:
-            print(f"\n{logSTRING}",file=ffa)
+        if logSTRING is not None:
+            with open(_logDIR / logFILE, 'a') as ffa:
+                print(f"\n{logSTRING}",file=ffa)
 
         _logFILE = _logDIR / logFILE
         _logIMAGE = _logDIR / logIMAGE

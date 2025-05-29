@@ -1,6 +1,6 @@
 # ChaterJee
 
-<img src="ChaterJee/ProfilePhoto.png" alt="ChaterJee" width="200"/>
+<img src="https://github.com/Pallab-Dutta/ChaterJee/raw/main/ChaterJee/ProfilePhoto.png" alt="ChaterJee" width="200"/>
 
 Often, we need to run computational `trial and error` experiments by just tweaking one or two key parameters. In machine learning, you face similar problems during hyperparameter tuning experiments. 
 
@@ -9,7 +9,13 @@ These are probably the most boring, time-consuming, yet unavoidable phases in ou
 Let me introduce ChaterJee to you — a playful fusion of `Chater`, meaning one who chats, and `Jee`, an honorific used in Indian culture to show respect. Think of `ChaterJee` as the lab assistant you always wanted — one who actually responds, never crashes your code, doesn't ask for co-authorship, and definitely doesn't need coffee all the time, unlike you.
 
 # Installation
-You need two things:
+As a prerequisite you are required to install the `jq` library for reading JSON files from bash script. 
+```bash
+sudo apt update
+sudo apt install jq
+```
+
+Now, you need two things:
  1. The `ChaterJee` module
  2. A telegram BOT that you own
 
@@ -50,27 +56,79 @@ https://api.telegram.org/bot123456789:ABCdefGhiJKlmNoPQRsTuvWXyz/getUpdates
  - `ChatLogs` class: This reads log files, the last line is sent to you via the BOT. It can also share you final plots that you need for your next rerun.
 
 ## The minimal example
-This will register your JOB with the given `JOB_NAME` and logfiles into a JSON file, `<your home>/.data/JOB_status.json`.
+This will register your JOB with the given `JOBNAME` and logfiles into a JSON file, `<your home>/.data/JOB_status.json`.
 
+`script.py`
 ```python
 # This is a minimal example
+
+# Your imports
+from pathlib import Path
 import ChaterJee
+import json
 
 # your code here
-JOB_NAME = "job_0.1.10"
-OUT_NAME = "experiment_0.1"
+with open("hyperparams.json","r") as ffr:
+    HYPERPARAMS = json.load(ffr)
+    # get your parameters
+    JOBNAME = HYPERPARAMS["JOBNAME"]
+    LOGDIR = HYPERPARAMS["LOGDIR"]
+    LOGFILE = HYPERPARAMS["LOGFILE"]
+    LOGIMAGE = HYPERPARAMS["LOGIMAGE"]
 
-for i in range(N):
-    # Your code here
-    notelogs = ChaterJee.NoteLogs()
-    notelogs.write(f"{JOB_NAME}",\
-    logSTRING=f"Step {i} done.",\
-    logFILE=f"{OUT_NAME}.log",\
-    logIMAGE=f"{OUT_NAME}.png")
- ```
+notelogs = ChaterJee.NoteLogs()
+notelogs.write(
+    jobNAME=JOBNAME,
+    logDIR=LOGDIR,
+    logFILE=LOGFILE,
+    logIMAGE=LOGIMAGE
+    )
+
+### Your code that generates logs
+print(f"{logs}")
+
+### Your code that generates plot
+logPath = Path(LOGDIR)
+plt.savefig(logPath / LOGIMAGE)
+```
+
+The `hyperparams.json` file should look like the following. It must contain the last 4 `{key: value}` pairs to let our BOT access the log results.
+
+`hyperparams.json`
+```json
+{
+    .
+    .
+
+    "JOBNAME": "model_2.4",
+    "LOGDIR": "./run_2.4",
+    "LOGFILE": "outFile.log",
+    "LOGIMAGE": "outImage.png"
+}
+```
+Save the following script in your working directory to rerun your tuning experiments quickly. 
+
+`run.sh`
+```bash
+#!/bin/bash
+
+# Path to hyperparameter file
+hyparam_file="hyperparams.json"
+
+# Read values from config.json using jq
+stdout_log=$(jq -r '.LOGFILE' "$hyparam_file")
+stdout_dir=$(jq -r '.LOGDIR' "$hyparam_file")
+
+# Create log directory
+mkdir -p "$stdout_dir"
+
+# Run the Python script with redirected logs
+nohup python script.py --hyprm "$hyparam_file" > "$stdout_dir/$stdout_log" 2> "$stdout_dir/error.log" &
+```
 
 Next step is to receive updates on your projects. 
 
+`updater.py`
 ```python
 # Run this instance separately to parse job updates
 # This is the one which actually communicates with your BOT.
@@ -84,3 +142,15 @@ if __name__ == '__main__':
     cbot = ChaterJee.ChatLogs(TOKEN, CHATID)
     cbot.cmdTRIGGER()
 ```
+Run the above script in a separate terminal session to start interacting with your BOT.
+
+## At your Telegram App
+- Think your inbox as the terminal.
+- `cd`, `ls` etc. works as expected. Therefore to go to parent directory, you simply type: `cd ..` , and to list contents type `ls` . You can run the `run.sh` executable just by typing `./run.sh` .
+- texts starting with `/` are telegram-BOT commands.
+
+At this stage the following 4 commands work:
+- `/start` : Starts the conversation with the BOT.
+- `/jobs` : List the jobs as Keyboard button options.
+- `/clear` : Clears the chat history once you allow.
+- `/edit file.json` : Let you edit and save the JSON file by the webapp Editor Babu. 
