@@ -122,8 +122,33 @@ stdout_dir=$(jq -r '.LOGDIR' "$hyparam_file")
 # Create log directory
 mkdir -p "$stdout_dir"
 
+# Backup the hyperparam file for reference
+cp "$hyparam_file" "$stdout_dir/$hyparam_file"
+
 # Run the Python script with redirected logs
 nohup python script.py --hyprm "$hyparam_file" > "$stdout_dir/$stdout_log" 2> "$stdout_dir/error.log" &
+
+# Save the PID of the background process
+echo $! > "$stdout_dir/job.pid"
+```
+
+Also, make a `kill_run.sh` file to kill this job in case you need to.
+
+`kill_run.sh`
+```bash
+#!/bin/bash
+stdout_dir=$(jq -r '.LOGDIR' hyperparams.json)
+
+# Check if the PID file exists
+pid_file="$stdout_dir/job.pid"
+
+if [ -f "$pid_file" ]; then
+    pid=$(cat "$pid_file")
+    echo "Killing process with PID $pid"
+    kill -9 "$pid" && echo "Process killed." || echo "Failed to kill process."
+else
+    echo "No PID file found. Is the process running?"
+fi
 ```
 
 Next step is to receive updates on your projects. 
@@ -151,6 +176,9 @@ Run the above script in a separate terminal session to start interacting with yo
 
 At this stage the following 4 commands work:
 - `/start` : Starts the conversation with the BOT.
+- `/run` : Runs the job (current directory).
+- `/kill` : Kills the job once you allow (current directory).
 - `/jobs` : List the jobs as Keyboard button options.
 - `/clear` : Clears the chat history once you allow.
-- `/edit file.json` : Let you edit and save the JSON file by the webapp Editor Babu. 
+- `/edit` : Let you choose and edit a JSON file (from current directory) by the webapp Editor Babu.
+- `/edit file.json` : Let you edit and save the JSON file (from any directory) by the webapp Editor Babu. 

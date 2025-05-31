@@ -12,6 +12,7 @@ from telegram.ext import Updater, ApplicationBuilder, ContextTypes, CommandHandl
 from telegram.constants import ParseMode
 import os.path
 import threading
+import subprocess
 from subprocess import PIPE, Popen
 from pathlib import Path
 
@@ -41,6 +42,8 @@ class ChatLogs:
         self.smsID = []
         self.dict = {}
         self.jobs = {}
+        self.runexe = "run.sh"
+        self.killexe = "kill_run.sh"
 
     def cmdTRIGGER(self, read_timeout=7, get_updates_read_timeout=42):
         #que = asyncio.Queue()
@@ -51,27 +54,35 @@ class ChatLogs:
         start_handler = CommandHandler('start', self.start)
         application.add_handler(start_handler)
 
-        fEdit_handler = CommandHandler('edit', self.EditorBabu)
-        application.add_handler(fEdit_handler)
+        jobrun_handler = CommandHandler('run', self.runjob)
+        application.add_handler(jobrun_handler)
+
+        #fEdit_handler = CommandHandler('edit', self.EditorBabu)
+        #application.add_handler(fEdit_handler)
 
         #cmd_handler = CommandHandler('sh', self.commands)
         #application.add_handler(cmd_handler)
 
-        cancel_handler = CommandHandler('cancel', self.cancel)
-        application.add_handler(cancel_handler)
+        #cancel_handler = CommandHandler('cancel', self.cancel)
+        #application.add_handler(cancel_handler)
 
         jobs_handler = ConversationHandler(\
-        entry_points=[CommandHandler("jobs", self.ShowJobs), CommandHandler("clear", self.ask2clear)],\
+        entry_points=[CommandHandler("jobs", self.ShowJobs),\
+                    CommandHandler("clear", self.ask2clear),\
+                    CommandHandler("edit", self.EditorBabu),\
+                    CommandHandler("kill", self.ask2kill)],\
         states={
             0: [MessageHandler(filters.Regex("^(JOB)"), self.StatJobs)],
             1: [MessageHandler(filters.Regex("^(Yes|No)$"), self.ClearChat)],
+            2: [MessageHandler(filters.Regex("^(FILE)"), self.SendEditButton)],
+            3: [MessageHandler(filters.Regex("^(Yes|No)$"), self.killjob)],
             },
             fallbacks=[CommandHandler("cancel", self.cancel)],
         )
         application.add_handler(jobs_handler)
 
         application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, self.web_app_data))
-        application.add_handler(MessageHandler(filters.TEXT & ~(filters.COMMAND | filters.Regex("^(JOB:|Yes$|No$)")), self.commands))
+        application.add_handler(MessageHandler(filters.TEXT & ~(filters.COMMAND | filters.Regex("^(JOB:|FILE:|Yes$|No$)")), self.commands))
 
         #await application.shutdown()
         #await application.initialize()
@@ -102,7 +113,7 @@ class ChatLogs:
             jobs = json.load(ffr)
         self.jobs = jobs
 
-        reply_keyboard = [[f'{job}'] for job in list(self.jobs.keys())]
+        reply_keyboard = [[f'{job}'] for job in list(self.jobs.keys())[::-1]]   # inverse to show latest jobs on top
         await context.bot.sendChatAction(chat_id=self.CHATID, action="typing")
         msg = await update.message.reply_text("Select a job to get updates on",\
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, input_field_placeholder="Select the job."\
@@ -148,7 +159,7 @@ class ChatLogs:
 
         return ConversationHandler.END
 
-    def get_last_line(self, filepath):
+    def get_last_line0(self, filepath):
         with open(filepath, 'rb') as f:
             # Go to the end of file
             f.seek(0, 2)
@@ -167,6 +178,27 @@ class ChatLogs:
             f.seek(pos + 1)
             last_line = f.read().decode('utf-8')
             return last_line.strip()
+
+    def get_last_line(self, filepath):
+        if not os.path.exists(filepath):
+            return None
+
+        try:
+            command_chain = f"tail -n 1000 '{filepath}' | grep -Ev '^\s*$' | tail -n 1"
+            process = subprocess.run(command_chain, shell=True, capture_output=True, text=True, check=True)
+            
+            output = process.stdout.strip()
+            if output:
+                return output
+            else:
+                return None
+
+        except subprocess.CalledProcessError as e:
+            return None
+        except FileNotFoundError:
+            return None
+        except Exception as e:
+            return None
 
     async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.smsID.append(update.message.message_id)
@@ -197,15 +229,56 @@ class ChatLogs:
                         )
                     ),
                 )
+                self.smsID.append(msg.message_id)
             else:
                 self.txt = f"File {file_path} not Found!"
-                #msg = await context.bot.send_message(chat_id=self.CHATID, text=txt)
+                await self.sendUpdate(update, context)
+            return ConversationHandler.END
         else:
-            self.txt = "Expected a JSON file as argument. Nothing provided."
-            #msg = await context.bot.send_message(chat_id=self.CHATID, text=txt)
-        
-        #self.smsID.append(msg.message_id)
-        await self.sendUpdate(update, context)
+            JSONfiles = self.get_json_files(".")
+            #self.txt = "Expected a JSON file as argument. Nothing provided."
+            #await self.sendUpdate(update, context)
+            await context.bot.sendChatAction(chat_id=self.CHATID, action="typing")
+            if len(JSONfiles):
+                msg = await update.message.reply_text("Select a JSON file to edit",\
+                    reply_markup=ReplyKeyboardMarkup(JSONfiles, one_time_keyboard=True, input_field_placeholder="Select the file."\
+                    ),\
+                    )
+                self.smsID.append(msg.message_id)
+                return 2
+            else:
+                self.txt = f"No JSON file found in the current directory!"
+                await self.sendUpdate(update, context)
+                return ConversationHandler.END
+
+    def get_json_files(self, directory):
+        json_files = []
+        for filename in os.listdir(directory):
+            if filename.endswith(".json"):
+                json_files.append([f"FILE: {filename}"])
+        return json_files
+
+    async def SendEditButton(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        #print("I'm here!")
+        self.smsID.append(update.message.message_id)
+        file_name = update.message.text[6:]
+        #print(file_name)
+        with open(file_name,'r') as ffr:
+            JsonStr = json.load(ffr)
+            encoded_params = urllib.parse.quote(json.dumps(JsonStr))
+        extender = f"?variables={encoded_params}&fileNAME={file_name}"
+        await context.bot.sendChatAction(chat_id=self.CHATID, action="typing")
+        msg = await update.message.reply_text(
+            "Editor-Babu is opening the Json file.",
+            reply_markup=ReplyKeyboardMarkup.from_button(
+                KeyboardButton(
+                    text="Editor Babu",
+                    web_app=WebAppInfo(url="https://pallab-dutta.github.io/EditorBabu"+extender),
+                    )
+                ),
+            )
+        self.smsID.append(msg.message_id)
+        return ConversationHandler.END
 
     async def web_app_data(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None :
         data = json.loads(update.effective_message.web_app_data.data)
@@ -220,13 +293,25 @@ class ChatLogs:
                 JSdata = {**JSdata, **data}
                 with open(fileNAME, 'w') as ffw:
                     json.dump(JSdata, ffw, indent=4)
+                #await context.bot.sendChatAction(chat_id=self.CHATID, action="typing")
+                #msg = await update.message.reply_text(
+                #    f"edits are saved to {fileNAME}", reply_markup=ReplyKeyboardRemove()
+                #)
+                #self.smsID.append(msg.message_id)
                 self.txt = f"edits are saved to {fileNAME}"
             else:
+                #await context.bot.sendChatAction(chat_id=self.CHATID, action="typing")
+                #msg = await update.message.reply_text(
+                #    f"No new changes! file kept unchanged.", reply_markup=ReplyKeyboardRemove()
+                #)
+                #self.smsID.append(msg.message_id)
                 self.txt = f"No new changes! file kept unchanged."
+            await self.sendUpdate(update, context)
+            #return ConversationHandler.END
 
         #msg = await context.bot.send_message(chat_id=self.CHATID, text=txt)
         #self.smsID.append(msg.message_id)
-        await self.sendUpdate(update, context)
+        #await self.sendUpdate(update, context)
 
     async def commands(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.smsID.append(update.message.message_id)
@@ -260,16 +345,27 @@ class ChatLogs:
 
     async def ClearChat(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.smsID.append(update.message.message_id)
-        await context.bot.sendChatAction(chat_id=self.CHATID, action="typing")
-        msg = await update.message.reply_text(
-        "Full chat history will be cleared", reply_markup=ReplyKeyboardRemove()
-        )
-        self.smsID.append(msg.message_id)
-        for i in self.smsID:
-            await context.bot.delete_message(chat_id=self.CHATID, message_id=i)
-        
-        self.smsID = []
-        return ConversationHandler.END
+        if update.message.text == 'Yes':
+            await context.bot.sendChatAction(chat_id=self.CHATID, action="typing")
+            msg = await update.message.reply_text(
+            "Full chat history will be cleared", reply_markup=ReplyKeyboardRemove()
+            )
+            self.smsID.append(msg.message_id)
+            for i in self.smsID:
+                try:
+                    await context.bot.delete_message(chat_id=self.CHATID, message_id=i)
+                except:
+                    pass
+            
+            self.smsID = []
+            return ConversationHandler.END
+        elif update.message.text == 'No':
+            await context.bot.sendChatAction(chat_id=self.CHATID, action="typing")
+            msg = await update.message.reply_text(
+            "Chat history is kept uncleared", reply_markup=ReplyKeyboardRemove()
+            )
+            self.smsID.append(msg.message_id)
+            return ConversationHandler.END
 
     async def ask2clear(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         self.smsID.append(update.message.message_id)
@@ -282,6 +378,49 @@ class ChatLogs:
         )
         self.smsID.append(msg.message_id)
         return 1
+
+    async def runjob(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        cmd = f"./{self.runexe}"
+        try:
+            os.popen('%s'%(cmd))#.read()
+            self.txt='job submitted !'
+        except:
+            self.txt='error !'
+        await self.sendUpdate(update, context)
+
+    async def ask2kill(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        self.smsID.append(update.message.message_id)
+        reply_keyboard = [['Yes','No']]
+        print(reply_keyboard)
+        await context.bot.sendChatAction(chat_id=self.CHATID, action="typing")
+        msg = await update.message.reply_text("Your job will be killed. Proceed?",\
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, input_field_placeholder="Select to proceed."\
+        ),\
+        )
+        self.smsID.append(msg.message_id)
+        return 3
+
+    async def killjob(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        cmd = f"./{self.killexe}"
+        try:
+            txt = os.popen('%s'%(cmd)).read()
+        except:
+            txt='error !'
+
+        self.smsID.append(update.message.message_id)
+        if update.message.text == 'Yes':
+            txt = os.popen('%s'%(cmd)).read()
+            await context.bot.sendChatAction(chat_id=self.CHATID, action="typing")
+            msg = await update.message.reply_text(
+            txt, reply_markup=ReplyKeyboardRemove()
+            )
+        elif update.message.text == 'No':
+            await context.bot.sendChatAction(chat_id=self.CHATID, action="typing")
+            msg = await update.message.reply_text(
+            "Your job is not killed.", reply_markup=ReplyKeyboardRemove()
+            )
+        self.smsID.append(msg.message_id)
+        return ConversationHandler.END
 
 
 class NoteLogs:
